@@ -126,6 +126,13 @@ tesseract_vec <- str_split(clean_tesseract_txt," ")[[1]] #1124 tokens
 tesseract_if_clean <- unlist(lapply(tesseract_vec,ifCleanToken)) # source code of ifCleanToken in in lib folder
 ```
 
+
+```{r}
+##error detection using D-2 paper:positional binary digram error detection
+
+
+```
+
 # Step 4 - Error correction
 
 Given the detected word error, in order to find the best correction, we need to generating the candidate corrections: a dictionary or a database of legal n-grams to locate one or more potential correction terms. Then we need invoke some lexical-similarity measure between the misspelled string and the candidates or a probabilistic estimate of the likelihood of the correction to rank order the candidates.
@@ -151,6 +158,10 @@ The referenced papers are:
 Here, in our code, we just simply remove the detected-errors.
 ```{r}
 tesseract_delete_error_vec <- tesseract_vec[tesseract_if_clean] #1095
+```
+
+```{r}
+##error correction using paper C-2:
 ```
 
 # Step 5 - Performance measure
