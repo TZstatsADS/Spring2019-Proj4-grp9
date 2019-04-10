@@ -1,0 +1,141 @@
+---
+title: "Baseline Model"
+author: "Wensong Qiao wq2144"
+date: "2019定4埖4晩"
+output: html_document
+---
+# Step 1 - Load library and source code
+```{r}
+Sys.setlocale('LC_ALL','C')
+
+if (!require("devtools")) install.packages("devtools")
+if (!require("pacman")) {
+  ## devtools is required
+  library(devtools)
+  install_github("trinker/pacman")
+}
+
+pacman::p_load(knitr, readr, stringr, tesseract, vecsets)
+source("../lib/ifCleanToken.R")
+file_name_vec <- list.files("../data/ground_truth") #100 files in total
+```
+
+# Step 2 - Read the files and conduct Tesseract OCR
+This step is for image recognition,transforming png files into text files.It is not necessary for this project.
+```{r}
+for(i in c(1:length(file_name_vec))){
+  current_file_name <- sub(".txt","",file_name_vec[i])
+  ## png folder is not provided on github (the code is only for demonstration purpose)
+  current_tesseract_txt <- tesseract::ocr(paste("../data/png/",current_file_name,".png",sep=""))
+  
+  ### clean the tessetact text (separate line by "\n", delete null string, transter to lower case)
+  clean_tesseract_txt <- strsplit(current_tesseract_txt,"\n")[[1]]
+  clean_tesseract_txt <- clean_tesseract_txt[clean_tesseract_txt!=""]
+  
+  ### save tesseract text file
+  writeLines(clean_tesseract_txt, paste("../data/tesseract/",current_file_name,".txt",sep=""))
+}
+
+```
+
+# Step 3 - Error detection
+```{r}
+
+for (i in 1:length(file_name_vec)) {
+  current_file_name[i] <- sub(".txt","",file_name_vec[i])
+}
+
+
+## read the ground truth text
+current_ground_truth_txt<-list(NULL)
+for (i in 1:length(file_name_vec)) {
+  current_ground_truth_txt[[i]] <- readLines(paste("../data/ground_truth/",current_file_name[i],".txt",sep=""), warn=FALSE)
+}
+
+## read the tesseract text
+current_tesseract_txt<-list(NULL)
+for (i in 1:length(current_ground_truth_txt)) {
+  current_tesseract_txt[[i]] <- readLines(paste("../data/tesseract/",current_file_name[i],".txt",sep=""), warn=FALSE)
+}
+
+clean_tesseract_txt<-list(NULL)
+for (i in 1:length(current_tesseract_txt)) {
+  clean_tesseract_txt[[i]] <- paste(current_tesseract_txt[[i]], collapse = " ")
+}
+
+##Define function ifCleanToken
+ifCleanToken <- function(cur_token){
+  now <- 1
+  if_clean <- TRUE
+  
+  ## in order to accelerate the computation, conduct ealy stopping
+  rule_list <- c("str_count(cur_token, pattern = '[A-Za-z0-9]') <= 0.5*nchar(cur_token)", # If the number of punctuation characters in a string is greater than the number of alphanumeric characters, it is garbage
+                 "length(unique(strsplit(gsub('[A-Za-z0-9]','',substr(cur_token, 2, nchar(cur_token)-1)),'')[[1]]))>1", #Ignoring the first and last characters in a string, if there are two or more different punctuation characters in thestring, it is garbage
+                 "nchar(cur_token)>20") #A string composed of more than 20 symbols is garbage 
+  while((if_clean == TRUE)&now<=length(rule_list)){
+    if(eval(parse(text = rule_list[now]))){
+      if_clean <- FALSE
+    }
+    now <- now + 1
+  }
+  return(if_clean)
+}
+
+## detect tesseract word error
+tesseract_list<-list(NULL)
+for (i in 1:length(clean_tesseract_txt)) {
+  tesseract_list[[i]] <- str_split(clean_tesseract_txt[[i]]," ")[[1]]
+}
+
+tesseract_if_clean<-list(NULL)
+for (i in 1:length(tesseract_list)) {
+ tesseract_if_clean [[i]]<- unlist(lapply(tesseract_list[[i]],ifCleanToken))
+}
+
+```
+# Step 4 - Error correction
+The simplies way！！！！just remove the detected-errors.
+```{r}
+tesseract_delete_error_list<-list(NULL)
+for (i in 1:length(tesseract_if_clean)) {
+ tesseract_delete_error_list[[i]] <- tesseract_list[[i]][tesseract_if_clean[[i]]]
+}
+```
+
+# Step 5 - Performance measure
+```{r}
+ground_truth_list<-list(NULL)
+for (i in 1:length(current_ground_truth_txt)) {
+ ground_truth_list[[i]] <- str_split(paste(current_ground_truth_txt[[i]], collapse = " ")," ")[[1]]
+}
+#word level evaluation
+ground_truth_vec_total<-as.vector(unlist(ground_truth_list))
+tesseract_vec_total<-as.vector(unlist(tesseract_list))
+tesseract_delete_error_vec_total<-as.vector(unlist(tesseract_delete_error_list))
+## Here, we compare the lower case version of the tokens
+old_intersect_vec <- vecsets::vintersect(tolower(ground_truth_vec_total), tolower(tesseract_vec_total)) 
+new_intersect_vec <- vecsets::vintersect(tolower(ground_truth_vec_total), tolower(tesseract_delete_error_vec_total)) 
+OCR_performance_table <- data.frame("Tesseract" = rep(NA,4),
+                                    "Tesseract_with_postprocessing" = rep(NA,4))
+row.names(OCR_performance_table) <- c("word_wise_recall","word_wise_precision",
+                                      "character_wise_recall","character_wise_precision")
+
+OCR_performance_table["word_wise_recall","Tesseract"] <- length(old_intersect_vec)/length(ground_truth_vec_total)
+OCR_performance_table["word_wise_precision","Tesseract"] <- length(old_intersect_vec)/length(tesseract_vec_total)
+OCR_performance_table["word_wise_recall","Tesseract_with_postprocessing"] <- length(new_intersect_vec)/length(ground_truth_vec_total)
+OCR_performance_table["word_wise_precision","Tesseract_with_postprocessing"] <- length(new_intersect_vec)/length(tesseract_delete_error_vec_total)
+
+#character-level evaluation
+ground_truth_vec_total_char<-unlist(str_split(paste(str_split(ground_truth_vec_total," "), collapse = ""),""))
+tesseract_vec_total_char <- unlist(str_split(paste(str_split(tesseract_vec_total," "), collapse = ""),""))
+tesseract_delete_error_vec_total_char <- unlist(str_split(paste(str_split(tesseract_delete_error_vec_total," "), collapse = ""),""))
+old_intersect_vec_char <- vecsets::vintersect(tesseract_vec_total_char, ground_truth_vec_total_char)
+new_intersect_vec_char <- vecsets::vintersect(tesseract_delete_error_vec_total_char, ground_truth_vec_total_char)
+
+OCR_performance_table["character_wise_recall","Tesseract"] <- length(old_intersect_vec_char)/length(ground_truth_vec_total_char)
+OCR_performance_table["character_wise_precision","Tesseract"] <- length(old_intersect_vec_char)/length(tesseract_vec_total_char)
+OCR_performance_table["character_wise_recall","Tesseract_with_postprocessing"] <- length(new_intersect_vec_char)/length(ground_truth_vec_total_char)
+OCR_performance_table["character_wise_precision","Tesseract_with_postprocessing"] <- length(new_intersect_vec_char)/length(tesseract_delete_error_vec_total_char)
+
+kable(OCR_performance_table, caption="Summary of OCR performance")
+```
