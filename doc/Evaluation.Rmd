@@ -1,0 +1,74 @@
+---
+title: "Evaluation"
+author: "Max Karsok"
+date: "April 13, 2019"
+output: html_document
+---
+Evaluation Step 1: Read Ground Truth and Processed Data
+```{r}
+file_name_vec <- list.files("../data/ground_truth")
+for(i in c(1:length(file_name_vec))){
+  current_file_name <- sub(".txt","",file_name_vec[i])}
+
+## read the ground truth text
+current_ground_truth_txt<-list(NULL)
+for (i in 1:length(file_name_vec)) {
+  current_ground_truth_txt[[i]] <- readLines(paste("../data/ground_truth/",current_file_name[i],".txt",sep=""), warn=FALSE)
+}
+
+## read the tesseract text
+current_tesseract_txt<-list(NULL)
+for (i in 1:length(current_ground_truth_txt)) {
+  current_tesseract_txt[[i]] <- readLines(paste("../data/tesseract/",current_file_name[i],".txt",sep=""), warn=FALSE)
+}
+clean_tesseract_txt<-list(NULL)
+for (i in 1:length(current_tesseract_txt)) {
+  clean_tesseract_txt[[i]] <- paste(current_tesseract_txt[[i]], collapse = " ")
+}
+tesseract_list<-list(NULL)
+for (i in 1:length(clean_tesseract_txt)) {
+  tesseract_list[[i]] <- str_split(clean_tesseract_txt[[i]]," ")[[1]]
+}
+
+#add the correction output #
+correction <- read.csv('C:/Users/mkars/Documents/GitHub/Spring2019-Proj4-grp9/doc/testResults.csv')
+correction_output <- correction$Wc
+```
+
+Step 2: Calculate the word and character-wise evaluations against Tesseract.
+```{r}
+ground_truth_list<-list(NULL)
+for (i in 1:length(current_ground_truth_txt)) {
+ ground_truth_list[[i]] <- str_split(paste(current_ground_truth_txt[[i]], collapse = " ")," ")[[1]]
+}
+#word level evaluation
+ground_truth_vec_total<-as.vector(unlist(ground_truth_list))
+tesseract_vec_total<-as.vector(unlist(tesseract_list))
+correction_output_vec_total<-as.vector(unlist(correction_output))
+## Here, we compare the lower case version of the tokens
+old_intersect_vec <- vecsets::vintersect(tolower(ground_truth_vec_total), tolower(tesseract_vec_total)) 
+new_intersect_vec <- vecsets::vintersect(tolower(ground_truth_vec_total), tolower(correction_output_vec_total)) 
+OCR_performance_table <- data.frame("Tesseract" = rep(NA,4),
+                                    "Tesseract_with_postprocessing" = rep(NA,4))
+row.names(OCR_performance_table) <- c("word_wise_recall","word_wise_precision",
+                                      "character_wise_recall","character_wise_precision")
+
+OCR_performance_table["word_wise_recall","Tesseract"] <- length(old_intersect_vec)/length(ground_truth_vec_total)
+OCR_performance_table["word_wise_precision","Tesseract"] <- length(old_intersect_vec)/length(tesseract_vec_total)
+OCR_performance_table["word_wise_recall","Tesseract_with_postprocessing"] <- length(new_intersect_vec)/length(ground_truth_vec_total)
+OCR_performance_table["word_wise_precision","Tesseract_with_postprocessing"] <- length(new_intersect_vec)/length(correction_output_vec_total)
+
+#character-level evaluation
+ground_truth_vec_total_char<-unlist(str_split(paste(str_split(ground_truth_vec_total," "), collapse = ""),""))
+tesseract_vec_total_char <- unlist(str_split(paste(str_split(tesseract_vec_total," "), collapse = ""),""))
+correction_output_vec_total_char <- unlist(str_split(paste(str_split(correction_output_vec_total," "), collapse = ""),""))
+old_intersect_vec_char <- vecsets::vintersect(tesseract_vec_total_char, ground_truth_vec_total_char)
+new_intersect_vec_char <- vecsets::vintersect(correction_output_vec_total_char, ground_truth_vec_total_char)
+
+OCR_performance_table["character_wise_recall","Tesseract"] <- length(old_intersect_vec_char)/length(ground_truth_vec_total_char)
+OCR_performance_table["character_wise_precision","Tesseract"] <- length(old_intersect_vec_char)/length(tesseract_vec_total_char)
+OCR_performance_table["character_wise_recall","Tesseract_with_postprocessing"] <- length(new_intersect_vec_char)/length(ground_truth_vec_total_char)
+OCR_performance_table["character_wise_precision","Tesseract_with_postprocessing"] <- length(new_intersect_vec_char)/length(correction_output_vec_total_char)
+
+kable(OCR_performance_table, caption="Summary of OCR performance")
+```
