@@ -22,30 +22,28 @@ file_name_vec <- list.files("../data/ground_truth") #100 files in total
 
 # Step 2 - Read the files and conduct Tesseract OCR
 This step is for image recognition,transforming png files into text files.It is not necessary for this project.
-```{r}
+```{r,results=¡°hide¡±}
+current_file_name<-NULL
 for(i in c(1:length(file_name_vec))){
-  current_file_name <- sub(".txt","",file_name_vec[i])
-  ## png folder is not provided on github (the code is only for demonstration purpose)
-  current_tesseract_txt <- tesseract::ocr(paste("../data/png/",current_file_name,".png",sep=""))
-  
-  ### clean the tessetact text (separate line by "\n", delete null string, transter to lower case)
-  clean_tesseract_txt <- strsplit(current_tesseract_txt,"\n")[[1]]
-  clean_tesseract_txt <- clean_tesseract_txt[clean_tesseract_txt!=""]
-  
-  ### save tesseract text file
-  writeLines(clean_tesseract_txt, paste("../data/tesseract/",current_file_name,".txt",sep=""))
+  current_file_name[i] <- sub(".txt","",file_name_vec[i])
 }
+#for(i in c(1:length(file_name_vec))){
+#  current_file_name <- sub(".txt","",file_name_vec[i])
+#  ## png folder is not provided on github (the code is only for demonstration purpose)
+#  current_tesseract_txt <- #tesseract::ocr(paste("../data/png/",current_file_name,".png",sep=""))
+  
+#  ### clean the tessetact text (separate line by "\n", delete null string, transter to lower case)
+#  clean_tesseract_txt <- strsplit(current_tesseract_txt,"\n")[[1]]
+#  clean_tesseract_txt <- clean_tesseract_txt[clean_tesseract_txt!=""]
+  
+#  ### save tesseract text file
+#  writeLines(clean_tesseract_txt, #paste("../data/tesseract/",current_file_name,".txt",sep=""))
+#}
 
 ```
 
 # Step 3 - Error detection
 ```{r}
-
-for (i in 1:length(file_name_vec)) {
-  current_file_name[i] <- sub(".txt","",file_name_vec[i])
-}
-
-
 ## read the ground truth text
 current_ground_truth_txt<-list(NULL)
 for (i in 1:length(file_name_vec)) {
